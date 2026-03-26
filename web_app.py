@@ -123,6 +123,8 @@ def detect():
                 
                 # 读取图像
                 image = cv2.imread(filepath)
+                if image is None
+                    return jsonify({'success': False, 'error': '无法读取图片，可能文件已损坏'}), 400
             else:
                 return jsonify({'success': False, 'error': '不支持的文件格式'}), 400
         
