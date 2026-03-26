@@ -1,9 +1,4 @@
-# Render 部署用 requirements（CPU版）
-# 使用 torch 的 CPU 版本
-torch==2.0.1+cpu
-torchvision==0.15.2+cpu
---extra-index-url https://download.pytorch.org/whl/cpu
-ultralytics>=8.0.0
+onnxruntime==1.16.3
 opencv-python>=4.8.0
 Pillow>=10.0.0
 numpy>=1.24.0
