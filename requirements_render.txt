@@ -1,4 +1,7 @@
-onnxruntime>=1.24.0
+# Render 部署用 requirements
+torch==2.0.1
+torchvision==0.15.2
+ultralytics>=8.0.0
 opencv-python>=4.8.0
 Pillow>=10.0.0
 numpy>=1.24.0
