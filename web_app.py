@@ -1,5 +1,5 @@
 """
-YOLO 路面病害检测 - Web 应用（ONNX 轻量版）
+YOLO 路面病害检测 - Web 应用
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -10,21 +10,14 @@ import cv2
 import numpy as np
 from datetime import datetime
 
-# 尝试导入 ONNX 检测器
-try:
-    from inference_onnx import ONNXDetector, CLASS_NAMES as ONNX_CLASS_NAMES
-    USE_ONNX = True
-except ImportError:
-    from inference_core import RoadDamageDetector
-    USE_ONNX = False
-
-# ==================== 配置 ====================
+from inference_core import RoadDamageDetector
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-MODEL_PATH = "best.onnx" if os.path.exists("best.onnx") else "best.pt"
+MODEL_PATH = "best.pt"
 CONF_THRESHOLD = 0.25
+DEVICE = "cpu"
 
 detector = None
 
@@ -36,22 +29,15 @@ CLASS_NAMES = {
 def get_detector():
     global detector
     if detector is None:
-        model_file = "best.onnx" if os.path.exists("best.onnx") else "best.pt"
-        
-        if not os.path.exists(model_file):
-            print(f"警告: 模型文件不存在: {model_file}")
+        if not os.path.exists(MODEL_PATH):
+            print(f"Warning: Model not found: {MODEL_PATH}")
             return None
-        
         try:
-            if USE_ONNX:
-                detector = ONNXDetector(model_file, conf_threshold=CONF_THRESHOLD)
-            else:
-                detector = RoadDamageDetector(model_path=model_file, device="cpu", conf_threshold=CONF_THRESHOLD)
-            print(f"✓ 检测器初始化成功")
+            detector = RoadDamageDetector(model_path=MODEL_PATH, device=DEVICE, conf_threshold=CONF_THRESHOLD)
+            print(f"[OK] Detector initialized")
         except Exception as e:
-            print(f"检测器初始化失败: {e}")
+            print(f"Error: {e}")
             return None
-    
     return detector
 
 
@@ -70,21 +56,21 @@ def detect():
     try:
         detector = get_detector()
         if detector is None:
-            return jsonify({'success': False, 'error': '模型加载失败'}), 500
+            return jsonify({'success': False, 'error': 'Model not loaded'}), 500
         
         image = None
         
         if 'file' in request.files:
             file = request.files['file']
             if file.filename == '':
-                return jsonify({'success': False, 'error': '未选择文件'}), 400
+                return jsonify({'success': False, 'error': 'No file selected'}), 400
             
             filestr = file.read()
             nparr = np.frombuffer(filestr, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             
             if image is None:
-                return jsonify({'success': False, 'error': '无法读取图片'}), 400
+                return jsonify({'success': False, 'error': 'Cannot read image'}), 400
         
         elif request.json and 'image' in request.json:
             image_data = request.json['image']
@@ -95,7 +81,7 @@ def detect():
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
         else:
-            return jsonify({'success': False, 'error': '未提供图像'}), 400
+            return jsonify({'success': False, 'error': 'No image provided'}), 400
         
         result = detector.detect(image)
         
@@ -113,7 +99,7 @@ def detect():
     
     except Exception as e:
         import traceback
-        print(f"检测错误: {e}")
+        print(f"Error: {e}")
         print(traceback.format_exc())
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -123,8 +109,8 @@ def model_info():
     return jsonify({
         'model_path': MODEL_PATH,
         'model_exists': os.path.exists(MODEL_PATH),
-        'model_type': 'ONNX' if USE_ONNX else 'PyTorch',
-        'device': 'CPU',
+        'model_type': 'PyTorch',
+        'device': DEVICE,
         'conf_threshold': CONF_THRESHOLD,
         'class_names': CLASS_NAMES
     })
@@ -132,11 +118,7 @@ def model_info():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("路面病害检测 Web 服务 (ONNX)")
+    print("Road Damage Detection Web Service")
     print("=" * 50)
-    print(f"模型: {MODEL_PATH}")
-    print(f"类型: {'ONNX' if USE_ONNX else 'PyTorch'}")
-    print("=" * 50)
-    
     get_detector()
     app.run(host='0.0.0.0', port=5000, debug=True)
