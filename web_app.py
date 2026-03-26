@@ -26,7 +26,7 @@ PORT = 5000
 DEBUG = True
 
 # 模型配置（根据实际训练结果路径修改）
-MODEL_PATH = "runs/detect/models/road_damage_detection2/weights/best.pt"
+MODEL_PATH = "best.pt"
 DEVICE = "0"  # "0"=GPU, "cpu"=CPU
 CONF_THRESHOLD = 0.25
 
