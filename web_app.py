@@ -25,9 +25,9 @@ HOST = "0.0.0.0"
 PORT = 5000
 DEBUG = True
 
-# 模型配置（根据实际训练结果路径修改）
+# 模型配置
 MODEL_PATH = "best.pt"
-DEVICE = "cpu"
+DEVICE = "cpu"  # Render 免费版用 CPU
 CONF_THRESHOLD = 0.25
 
 # 上传配置
@@ -57,7 +57,6 @@ def get_detector():
     if detector is None:
         if not os.path.exists(MODEL_PATH):
             print(f"警告: 模型文件不存在: {MODEL_PATH}")
-            print("请确保训练已完成")
             return None
         
         print("初始化检测器...")
@@ -94,44 +93,37 @@ def index():
 
 @app.route('/detect', methods=['POST'])
 def detect():
-    """检测接口 - 支持文件上传或 base64 图像"""
+    """检测接口"""
     try:
         detector = get_detector()
         if detector is None:
             return jsonify({
                 'success': False,
-                'error': '模型未加载，请先完成训练'
+                'error': '模型未加载'
             }), 500
         
         image = None
         
-        # 检查是否有文件上传
+        # 处理文件上传
         if 'file' in request.files:
             file = request.files['file']
             if file.filename == '':
                 return jsonify({'success': False, 'error': '未选择文件'}), 400
             
-            if file and allowed_file(file.filename):
-                # 保存上传的文件
-                filename = secure_filename(file.filename)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_{filename}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if allowed_file(file.filename):
+                # 直接从内存读取图像，避免保存
+                filestr = file.read()
+                nparr = np.frombuffer(filestr, np.uint8)
+                image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 
-                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-                file.save(filepath)
-                
-                # 读取图像
-                image = cv2.imread(filepath)
-                if image is None
-                    return jsonify({'success': False, 'error': '无法读取图片，可能文件已损坏'}), 400
+                if image is None:
+                    return jsonify({'success': False, 'error': '无法读取图片'}), 400
             else:
                 return jsonify({'success': False, 'error': '不支持的文件格式'}), 400
         
-        # 检查是否有 base64 图像
+        # 处理 base64 图像
         elif request.json and 'image' in request.json:
             image_data = request.json['image']
-            # 去除 base64 前缀
             if ',' in image_data:
                 image_data = image_data.split(',')[1]
             image = base64_to_image(image_data)
@@ -161,49 +153,6 @@ def detect():
         import traceback
         print(f"检测错误: {str(e)}")
         print(traceback.format_exc())
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/detect', methods=['POST'])
-def api_detect():
-    """API 检测接口 - 纯 JSON 返回"""
-    try:
-        detector = get_detector()
-        if detector is None:
-            return jsonify({
-                'success': False,
-                'error': '模型未加载'
-            }), 500
-        
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': '未提供文件'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'success': False, 'error': '未选择文件'}), 400
-        
-        if file and allowed_file(file.filename):
-            # 读取图像
-            filestr = file.read()
-            nparr = np.frombuffer(filestr, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            # 执行检测
-            result = detector.detect(image)
-            
-            return jsonify({
-                'success': True,
-                'num_detections': result['num_detections'],
-                'detections': result['detections'],
-                'summary': detector.get_detection_summary(result['detections'])
-            })
-        else:
-            return jsonify({'success': False, 'error': '不支持的文件格式'}), 400
-    
-    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
@@ -240,11 +189,6 @@ def too_large(e):
     return jsonify({'success': False, 'error': '文件太大，最大支持 16MB'}), 413
 
 
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({'success': False, 'error': '服务器内部错误'}), 500
-
-
 # ==================== 启动应用 ====================
 
 if __name__ == '__main__':
@@ -253,18 +197,9 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"模型路径: {MODEL_PATH}")
     print(f"运行设备: {DEVICE}")
-    print(f"服务地址: http://{HOST}:{PORT}")
     print("=" * 60)
     
-    # 创建上传目录
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-    
-    # 预加载模型
-    print("\n正在初始化...")
     get_detector()
-    
-    print("\n启动服务...")
-    print(f"请在浏览器中访问: http://localhost:{PORT}")
-    print("按 Ctrl+C 停止服务\n")
     
     app.run(host=HOST, port=PORT, debug=DEBUG)
